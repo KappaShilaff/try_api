@@ -1,4 +1,4 @@
-use crate::dto::CreateAccountDto;
+use crate::dto::{CreateAccountDto, SignAndGetDto, UpdateAccountDto, GetApiKeyDto};
 use opg::*;
 
 pub fn swagger() -> String {
@@ -13,10 +13,46 @@ pub fn swagger() -> String {
     paths: {
             ("account"): {
                 POST: {
+                    summary: "Create account",
                     body: CreateAccountDto,
-                    201: String,
+                    200: String,
+                    400: String,
+                },
+                PUT: {
+                    summary: "Sign and get key",
+                    body: SignAndGetDto,
+                    200: String,
+                    400: String,
+                },
+                PATCH: {
+                    summary: "Update account",
+                    body: UpdateAccountDto,
+                    200: String,
+                    400: String,
                 }
             },
+            ("account" / {account_id: String}): {
+                DELETE: {
+                    summary: "Delete account",
+                    200: String,
+                    400: String,
+                }
+            },
+            ("key"/ "account" / {account_id: String}): {
+                DELETE: {
+                    summary: "Delete key",
+                    200: String,
+                    400: String,
+                }
+            },
+            ("key" / "account"): {
+                PUT: {
+                    summary: "Get api key",
+                    body: GetApiKeyDto,
+                    200: String,
+                    400: String,
+                }
+            }
         }
     };
     serde_yaml::to_string(&api).unwrap()

@@ -33,9 +33,14 @@ async fn main() {
         .and_then(create_account_rest);
 
     let sign_rout = warp::path!("account")
-        .and(warp::get())
+        .and(warp::put())
         .and(json_body::<SignAndGetDto>())
         .and_then(sign_and_key_rest);
+
+    let account_update_rout = warp::path!("account")
+        .and(warp::patch())
+        .and(json_body::<UpdateAccountDto>())
+        .and_then(update_account_rest);
 
     let remove_account_rout = warp::path!("account" / String)
         .and(warp::delete())
@@ -45,13 +50,8 @@ async fn main() {
         .and(warp::delete())
         .and_then(remove_key_rest);
 
-    let account_update_rout = warp::path!("account")
-        .and(warp::patch())
-        .and(json_body::<UpdateAccountDto>())
-        .and_then(update_account_rest);
-
     let get_api_key_rout = warp::path!("key" / "account")
-        .and(warp::get())
+        .and(warp::put())
         .and(json_body::<GetApiKeyDto>())
         .and_then(get_api_key_rest);
 
@@ -89,14 +89,14 @@ async fn create_account_rest(
         Ok(()) => {
             Ok(warp::reply::with_status(
                 "Create account",
-                http::StatusCode::CREATED,
+                http::StatusCode::OK,
             ))
         }
         Err(err) => {
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
                 "Error",
-                http::StatusCode::NOT_ACCEPTABLE,
+                http::StatusCode::BAD_REQUEST,
             ))
         }
     }
@@ -114,14 +114,14 @@ async fn sign_and_key_rest(
         Ok((mda, kek)) => {
             Ok(warp::reply::with_status(
                 format!("Sign get {} {}", mda, kek),
-                http::StatusCode::ACCEPTED,
+                http::StatusCode::OK,
             ))
         }
         Err(err) => {
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
                 "error".to_string(),
-                http::StatusCode::FORBIDDEN,
+                http::StatusCode::BAD_REQUEST,
             ))
         }
     }
@@ -144,7 +144,7 @@ async fn remove_account_rest(
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
                 "error".to_string(),
-                http::StatusCode::NOT_FOUND,
+                http::StatusCode::BAD_REQUEST,
             ))
         }
     }
@@ -167,7 +167,7 @@ async fn remove_key_rest(
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
                 "error".to_string(),
-                http::StatusCode::NOT_FOUND,
+                http::StatusCode::BAD_REQUEST,
             ))
         }
     }
@@ -193,7 +193,7 @@ async fn update_account_rest(
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
                 "Update error".to_string(),
-                http::StatusCode::NOT_FOUND,
+                http::StatusCode::BAD_REQUEST,
             ))
         }
     }
