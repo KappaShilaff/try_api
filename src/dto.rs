@@ -1,7 +1,8 @@
 use crate::models::{ExchangeName};
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize};
+use opg::*;
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, OpgModel)]
 pub struct CreateAccountDto {
     pub uid: String,
     pub _exchange: ExchangeName,
@@ -9,14 +10,14 @@ pub struct CreateAccountDto {
     pub sign_key: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, OpgModel)]
 pub struct SignAndGetDto {
     pub uid: String,
     pub _exchange: ExchangeName,
     pub data_to_sign: Vec<u8>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, OpgModel)]
 pub struct UpdateAccountDto {
     pub uid: String,
     pub _exchange: ExchangeName,
@@ -24,7 +25,7 @@ pub struct UpdateAccountDto {
     pub sign_key: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, OpgModel)]
 pub struct GetApiKeyDto {
     pub uid: String,
     pub _exchange: ExchangeName,

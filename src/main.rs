@@ -1,11 +1,15 @@
-use warp::{http, Filter};
+use warp::{http, Filter, any};
 use crate::models::{AccountId};
 use crate::account::Account;
 use crate::dto::{CreateAccountDto, SignAndGetDto, UpdateAccountDto, GetApiKeyDto};
+use crate::db::{db_connect, mem};
+use sqlx::{Pool, Postgres};
 
 mod account;
 mod models;
 mod dto;
+mod db;
+mod docs;
 
 fn json_body<T>() -> impl Filter<Extract=(T, ), Error=warp::Rejection> + Clone
     where
@@ -16,8 +20,15 @@ fn json_body<T>() -> impl Filter<Extract=(T, ), Error=warp::Rejection> + Clone
 
 #[tokio::main]
 async fn main() {
+    let db = db_connect().await;
+
+    let swagger = warp::path!("swagger.yaml")
+        .and(warp::get())
+        .map(docs::swagger);
+
     let create_rout = warp::path!("account")
         .and(warp::post())
+        .and(any().map(move || db.clone()))
         .and(json_body::<CreateAccountDto>())
         .and_then(create_account_rest);
 
@@ -44,21 +55,31 @@ async fn main() {
         .and(json_body::<GetApiKeyDto>())
         .and_then(get_api_key_rest);
 
-    let routes =
-        create_rout
-            .or(sign_rout)
-            .or(remove_account_rout)
-            .or(remove_key_rout)
-            .or(account_update_rout)
-            .or(get_api_key_rout);
+    let routes = swagger
+        .or(create_rout)
+        .or(sign_rout)
+        .or(remove_account_rout)
+        .or(remove_key_rout)
+        .or(account_update_rout)
+        .or(get_api_key_rout);
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
+#[derive(sqlx::FromRow)]
+struct Memi32 {
+    test_id: i32,
+}
+
 async fn create_account_rest(
+    pg: Pool<Postgres>,
     create_account_dto: CreateAccountDto,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     let acc = Account::new();
+    match mem(&pg, &create_account_dto.uid).await {
+        Ok(lol) => println!("{}", lol),
+        Err(err) => eprintln!("{}", err)
+    }
     match acc.create_account(
         &AccountId(create_account_dto.uid),
         &create_account_dto._exchange,

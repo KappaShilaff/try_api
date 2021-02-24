@@ -5,11 +5,15 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
+use opg::*;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Hash, Eq, PartialEq, OpgModel)]
+#[opg("accountid string", format = "id", example = "abcd0001")]
 pub struct AccountId(pub String);
 
-#[derive(Clone, Debug, Serialize, Deserialize, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Hash, Eq, PartialEq, OpgModel)]
+#[serde(rename_all = "camelCase")]
+#[opg("ExchangeName")]
 pub enum ExchangeName {
     Binance,
     HitBtc,
