@@ -1,9 +1,8 @@
-use sqlx::{Pool, Postgres, PgPool, Error};
+use sqlx::{Pool, Postgres, Error};
 use sqlx::postgres::{PgPoolOptions};
 use crate::models::{AccountId, ExchangeName};
 use serde::{Deserialize, Serialize};
-use opg::ModelTypeDescription::Integer;
-use rust_decimal::prelude::{ToPrimitive, FromPrimitive};
+use rust_decimal::prelude::{FromPrimitive};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Hash, Eq, PartialEq)]
 pub struct AccountEntity {
@@ -23,17 +22,16 @@ pub async fn db_connect() -> Pool<Postgres> {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct AccountOrm <'a> {
-    pg_pool: &'a Pool<Postgres>,
+#[derive(Clone)]
+pub struct AccountOrm {
+    pg_pool: Pool<Postgres>,
 }
 
-impl AccountOrm<'_> {
-    pub async fn new(pg_pool: &Pool<Postgres>) -> AccountOrm<'_> {
-
-        AccountOrm{ pg_pool }
+impl AccountOrm {
+    pub async fn new(pg_pool: Pool<Postgres>) -> AccountOrm {
+        AccountOrm { pg_pool }
     }
-    pub async fn create_account (
+    pub async fn create_account(
         &self,
         uid: &AccountId,
         exchange: &ExchangeName,
@@ -49,12 +47,12 @@ impl AccountOrm<'_> {
         api_key,
         sign_key,
     )
-            .fetch_one(&*self.pg_pool)
+            .fetch_one(&self.pg_pool)
             .await?;
         Ok(result.uid)
     }
 
-    pub async fn sign_and_get_key (
+    pub async fn sign_and_get_key(
         &self,
         uid: &AccountId,
         exchange: &ExchangeName,
@@ -69,8 +67,111 @@ impl AccountOrm<'_> {
         uid.0,
         exchange.to_string(),
     )
-            .fetch_one(&*self.pg_pool)
+            .fetch_one(&self.pg_pool)
             .await?;
         Ok((result.uid, result.api_key.unwrap()))
+    }
+
+    pub async fn remove_key(
+        &self,
+        uid: &AccountId,
+    ) -> Result<(), Error> {
+        sqlx::query!(
+        r#"UPDATE test.public.accounts SET api_key = NULL
+         WHERE uid = $1;"#,
+        uid.0,
+    )
+            .execute(&self.pg_pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn remove_account(
+        &self,
+        uid: &AccountId,
+    ) -> Result<(), Error> {
+        sqlx::query!(
+        r#"DELETE FROM test.public.accounts
+         WHERE uid = $1;"#,
+        uid.0,
+    )
+            .execute(&self.pg_pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn get_api_key(
+        &self,
+        uid: &AccountId,
+        exchange: &ExchangeName,
+    ) -> Result<String, Error> {
+        let result = sqlx::query!(
+        r#"SELECT api_key FROM test.public.accounts
+         WHERE uid = $1 AND exchange = $2;"#,
+        uid.0,
+        exchange.to_string(),
+    )
+            .fetch_one(&self.pg_pool)
+            .await?;
+        if result.api_key.is_some() {
+            Ok(result.api_key.unwrap())
+        } else {
+            Err(Error::RowNotFound)
+        }
+    }
+
+    pub async fn update_account(
+        &self,
+        uid: &AccountId,
+        exchange: &ExchangeName,
+        api_key: Option<String>,
+        sign_key: Option<String>,
+    ) -> Result<String, Error> {
+        if api_key.is_some() && sign_key.is_some() {
+            sqlx::query!(
+        r#"UPDATE test.public.accounts SET exchange = $1,
+                                api_key = $2,
+                                sign_key = $3
+         WHERE uid = $4;"#,
+        exchange.to_string(),
+        api_key,
+        sign_key,
+        uid.0,
+    )
+                .execute(&self.pg_pool)
+                .await?;
+        } else if api_key.is_some() {
+            sqlx::query!(
+        r#"UPDATE test.public.accounts SET exchange = $1,
+                                api_key = $2
+         WHERE uid = $3;"#,
+        exchange.to_string(),
+        api_key,
+        uid.0,
+    )
+                .execute(&self.pg_pool)
+                .await?;
+        } else if sign_key.is_some() {
+            sqlx::query!(
+        r#"UPDATE test.public.accounts SET exchange = $1,
+                                sign_key = $2
+         WHERE uid = $3;"#,
+        exchange.to_string(),
+        sign_key,
+        uid.0,
+    )
+                .execute(&self.pg_pool)
+                .await?;
+        } else {
+            sqlx::query!(
+        r#"UPDATE test.public.accounts SET exchange = $1
+         WHERE uid = $2;"#,
+        exchange.to_string(),
+        uid.0,
+    )
+                .execute(&self.pg_pool)
+                .await?;
+        };
+        Ok(uid.0.clone())
     }
 }

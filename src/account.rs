@@ -1,18 +1,16 @@
 use crate::models::{AccountId, ExchangeName};
 use std::fmt::Error;
-use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Pool, Postgres};
+use sqlx::{Pool, Postgres};
 use crate::db::AccountOrm;
-use crate::main;
 
 
-#[derive(Copy, Clone)]
-pub struct AccountRepo {
-    pub account_orm: AccountOrm<'static>,
+#[derive(Clone)]
+pub struct AccountRepo{
+    pub account_orm: AccountOrm,
 }
 
 impl AccountRepo {
-    pub async fn new(pg_pool: &'static Pool<Postgres>) -> AccountRepo {
+    pub async fn new(pg_pool: Pool<Postgres>) -> AccountRepo {
         let account_orm = AccountOrm::new(pg_pool).await;
         AccountRepo{ account_orm }
     }
@@ -52,43 +50,52 @@ impl AccountRepo {
     }
 
     pub async fn remove_key(&self, uid: &AccountId) -> Result<(), Error> {
-        if !uid.0.is_empty() {
-            Ok(())
-        } else {
-            Err(Error::default())
+        match self.account_orm.remove_key(uid).await {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                eprintln!("{}", err);
+                Err(Error::default())
+            }
         }
     }
 
     pub async fn update_account(
         &self,
         uid: &AccountId,
-        _exchange: &ExchangeName,
+        exchange: &ExchangeName,
         api_key: Option<String>,
         sign_key: Option<String>,
     ) -> Result<String, Error> {
-        if !uid.0.is_empty() && api_key.is_some() && sign_key.is_some() {
-            Ok(uid.0.clone())
-        } else {
-            Err(Error::default())
-        }
+       match self.account_orm.update_account(uid, exchange, api_key, sign_key).await {
+           Ok(res) => Ok(res),
+           Err(err) => {
+               eprintln!("{}", err);
+               Err(Error::default())
+           }
+       }
     }
 
     pub async fn get_api_key(
         &self,
         uid: &AccountId,
-        _exchange: &ExchangeName,
+        exchange: &ExchangeName,
     ) -> Result<String, Error> {
-        if !uid.0.is_empty() {
-            Ok(uid.0.to_string())
-        } else {
-            Err(Error::default())
+        match self.account_orm.get_api_key(uid, exchange).await {
+            Ok(res) => Ok(res),
+            Err(err) => {
+                eprintln!("{}", err);
+                Err(Error::default())
+            }
         }
     }
-    pub async fn remove_account(&self, id: &AccountId) -> Result<(), Error> {
-        if !id.0.is_empty() {
-            Ok(())
-        } else {
-            Err(Error::default())
+
+    pub async fn remove_account(&self, uid: &AccountId) -> Result<(), Error> {
+        match self.account_orm.remove_account(uid).await {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                eprintln!("{}", err);
+                Err(Error::default())
+            }
         }
     }
 }
