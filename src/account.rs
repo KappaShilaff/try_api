@@ -1,51 +1,53 @@
 use crate::models::{AccountId, ExchangeName};
 use std::fmt::Error;
 use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Pool, Postgres};
+use crate::db::AccountOrm;
+use crate::main;
 
 
-#[derive(Clone, Debug, Serialize, Deserialize, Hash, Eq, PartialEq)]
-pub struct Account {
-    pub uid: AccountId,
-    pub exchange: ExchangeName,
-    pub data_to_sign: u8,
-    pub api_key: Option<String>,
-    pub sign_key: Option<String>,
+#[derive(Copy, Clone)]
+pub struct AccountRepo {
+    pub account_orm: AccountOrm<'static>,
 }
 
-impl Account {
-    pub fn new() -> Account {
-        Account {
-            uid: AccountId("".to_string()),
-            exchange: ExchangeName::Binance,
-            data_to_sign: 0,
-            api_key: None,
-            sign_key: None,
-        }
+impl AccountRepo {
+    pub async fn new(pg_pool: &'static Pool<Postgres>) -> AccountRepo {
+        let account_orm = AccountOrm::new(pg_pool).await;
+        AccountRepo{ account_orm }
     }
+
     pub async fn sign_and_get_key(
         &self,
         uid: &AccountId,
-        _exchange: &ExchangeName,
+        exchange: &ExchangeName,
         data_to_sign: &[u8],
     ) -> Result<(String, String), Error> {
-        if !uid.0.is_empty() && !data_to_sign.is_empty() {
-            Ok(((uid.0.to_string()), data_to_sign.get(0).unwrap().to_string()))
-        } else {
-            Err(Error::default())
+        match self.account_orm.sign_and_get_key(uid, exchange, data_to_sign).await {
+            Ok(result) => Ok(result),
+            Err(err) => {
+                eprintln!("{}", err);
+                Err(Error::default())
+            }
         }
     }
 
     pub async fn create_account(
         &self,
         uid: &AccountId,
-        _exchange: &ExchangeName,
+        exchange: &ExchangeName,
         api_key: &str,
         sign_key: Option<String>,
     ) -> Result<(), Error> {
-        if !uid.0.is_empty() && !api_key.is_empty() && sign_key.is_some() {
-            Ok(())
-        } else {
-            Err(Error::default())
+        match self.account_orm.create_account(uid, exchange, api_key, sign_key).await {
+            Ok(account_id) => {
+                println!("{}", account_id);
+                Ok(())
+            }
+            Err(err) => {
+                eprintln!("{}", err);
+                Err(Error::default())
+            }
         }
     }
 
