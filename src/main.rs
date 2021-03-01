@@ -22,7 +22,7 @@ fn json_body<T>() -> impl Filter<Extract=(T, ), Error=warp::Rejection> + Clone
 async fn main() {
     let db = db_connect().await;
     let account_repo = Arc::new(AccountRepo::new(db.clone()).await);
-    let state = warp::any().map(move ||account_repo.clone());
+    let state = warp::any().map(move || account_repo.clone());
     let swagger = warp::path!("swagger.yaml")
         .and(warp::get())
         .map(docs::swagger);
@@ -84,14 +84,14 @@ async fn create_account_rest(
     ).await {
         Ok(()) => {
             Ok(warp::reply::with_status(
-                "Create account",
+                "Create account".to_string(),
                 http::StatusCode::OK,
             ))
         }
         Err(err) => {
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
-                "Error",
+                err.to_string(),
                 http::StatusCode::BAD_REQUEST,
             ))
         }
@@ -116,7 +116,7 @@ async fn sign_and_key_rest(
         Err(err) => {
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
-                "error".to_string(),
+                err.to_string(),
                 http::StatusCode::BAD_REQUEST,
             ))
         }
@@ -139,7 +139,7 @@ async fn remove_account_rest(
         Err(err) => {
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
-                "error".to_string(),
+                err.to_string(),
                 http::StatusCode::BAD_REQUEST,
             ))
         }
@@ -162,7 +162,7 @@ async fn remove_key_rest(
         Err(err) => {
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
-                "error".to_string(),
+                err.to_string(),
                 http::StatusCode::BAD_REQUEST,
             ))
         }
@@ -181,14 +181,14 @@ async fn update_account_rest(
     ).await {
         Ok(response) => {
             Ok(warp::reply::with_status(
-                format!("Account updated {}", response),
+                format!("Account with uid \"{}\" updated", response),
                 http::StatusCode::OK,
             ))
         }
         Err(err) => {
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
-                "Update error".to_string(),
+                err.to_string(),
                 http::StatusCode::BAD_REQUEST,
             ))
         }
@@ -212,7 +212,7 @@ async fn get_api_key_rest(
         Err(err) => {
             println!("{}", err.to_string());
             Ok(warp::reply::with_status(
-                "Key not found".to_string(),
+                err.to_string(),
                 http::StatusCode::NOT_FOUND,
             ))
         }

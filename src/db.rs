@@ -1,8 +1,9 @@
-use sqlx::{Pool, Postgres, Error, Row};
+use sqlx::{Pool, Postgres, Row};
 use sqlx::postgres::{PgPoolOptions};
 use crate::models::{AccountId, ExchangeName};
 use serde::{Deserialize, Serialize};
 use rust_decimal::prelude::{FromPrimitive};
+use anyhow::{anyhow, bail};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Hash, Eq, PartialEq)]
 pub struct AccountEntity {
@@ -37,11 +38,11 @@ impl AccountOrm {
         exchange: &ExchangeName,
         api_key: &str,
         sign_key: Option<String>,
-    ) -> Result<String, Error> {
-        let stringa = "INSERT INTO test.public.accounts (uid, exchange, api_key, sign_key)
+    ) -> Result<String, anyhow::Error> {
+        let query = "INSERT INTO test.public.accounts (uid, exchange, api_key, sign_key)
          VALUES ($1, $2, $3, $4)
          RETURNING (uid)";
-        let result = sqlx::query(stringa)
+        let result = sqlx::query(query)
             .bind(&uid.0)
             .bind(exchange.to_string())
             .bind(api_key)
@@ -56,9 +57,9 @@ impl AccountOrm {
         uid: &AccountId,
         exchange: &ExchangeName,
         data_to_sign: &[u8],
-    ) -> Result<(String, String), Error> {
+    ) -> Result<(String, String), anyhow::Error> {
         let lol: Vec<i32> = data_to_sign.to_vec().into_iter().map(move |x| i32::from_u8(x).unwrap()).collect();
-        let result = sqlx::query!(
+        match sqlx::query!(
         r#"UPDATE test.public.accounts SET data_to_sign = $1
          WHERE uid = $2 AND exchange = $3
          RETURNING uid, api_key;"#,
@@ -66,36 +67,45 @@ impl AccountOrm {
         uid.0,
         exchange.to_string(),
     )
-            .fetch_one(&self.pg_pool)
-            .await?;
-        Ok((result.uid, result.api_key.unwrap()))
+            .fetch_optional(&self.pg_pool)
+            .await? {
+            Some(result) => match result.api_key {
+                Some(api_key) => Ok((result.uid, api_key)),
+                None => Ok((result.uid, "".to_string()))
+            },
+            None => bail!("Account with uid \"{}\" AND exchange \"{}\" not found", uid.0, exchange.to_string())
+        }
     }
 
     pub async fn remove_key(
         &self,
         uid: &AccountId,
-    ) -> Result<(), Error> {
-        sqlx::query!(
+    ) -> Result<(), anyhow::Error> {
+        let result = sqlx::query!(
         r#"UPDATE test.public.accounts SET api_key = NULL
-         WHERE uid = $1;"#,
+         WHERE uid = $1
+         RETURNING uid;"#,
         uid.0,
     )
-            .execute(&self.pg_pool)
+            .fetch_one(&self.pg_pool)
             .await?;
+        println!("account's key with uid \"{}\" removed", result.uid);
         Ok(())
     }
 
     pub async fn remove_account(
         &self,
         uid: &AccountId,
-    ) -> Result<(), Error> {
-        sqlx::query!(
+    ) -> Result<(), anyhow::Error> {
+        let result = sqlx::query!(
         r#"DELETE FROM test.public.accounts
-         WHERE uid = $1;"#,
+         WHERE uid = $1
+         RETURNING uid;"#,
         uid.0,
     )
-            .execute(&self.pg_pool)
+            .fetch_one(&self.pg_pool)
             .await?;
+        println!("account with uid \"{}\" removed", result.uid);
         Ok(())
     }
 
@@ -103,19 +113,20 @@ impl AccountOrm {
         &self,
         uid: &AccountId,
         exchange: &ExchangeName,
-    ) -> Result<String, Error> {
-        let result = sqlx::query!(
+    ) -> Result<String, anyhow::Error> {
+        match sqlx::query!(
         r#"SELECT api_key FROM test.public.accounts
          WHERE uid = $1 AND exchange = $2;"#,
         uid.0,
         exchange.to_string(),
     )
-            .fetch_one(&self.pg_pool)
-            .await?;
-        if result.api_key.is_some() {
-            Ok(result.api_key.unwrap())
-        } else {
-            Err(Error::RowNotFound)
+            .fetch_optional(&self.pg_pool)
+            .await? {
+            Some(result) => match result.api_key {
+                Some(api_key) => Ok(api_key),
+                None => Err(anyhow!("api_key is none"))
+            },
+            None => Err(anyhow!("key with uid \"{}\" and exchange \"{}\" not found", uid.0, exchange.to_string()))
         }
     }
 
@@ -125,16 +136,16 @@ impl AccountOrm {
         exchange: &ExchangeName,
         api_key: Option<String>,
         sign_key: Option<String>,
-    ) -> Result<String, Error> {
+    ) -> Result<String, anyhow::Error> {
         let mut query = "UPDATE test.public.accounts SET exchange = $1,".to_string();
         if api_key.is_some() {
             query += " api_key = $2,";
-       }
+        }
         if sign_key.is_some() {
             query += " sign_key = $3,";
         }
         query.remove(query.len() - 1);
-        query += "\nWHERE uid = $4\n RETURNING uid";
+        query += "\nWHERE uid = $4\n RETURNING uid;";
 
         let result = sqlx::query(query.as_str())
             .bind(exchange.to_string())

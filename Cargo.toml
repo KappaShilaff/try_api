@@ -17,3 +17,4 @@ rust_decimal = "1.10.3"
 sqlx = { version = "0.5.1", features = [ "postgres", "runtime-tokio-rustls",  "macros" ] }
 opg = "0.0.32"
 serde_yaml = "0.8"
+anyhow = "1.0.38"
