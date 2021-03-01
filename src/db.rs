@@ -1,4 +1,4 @@
-use sqlx::{Pool, Postgres, Error};
+use sqlx::{Pool, Postgres, Error, Row};
 use sqlx::postgres::{PgPoolOptions};
 use crate::models::{AccountId, ExchangeName};
 use serde::{Deserialize, Serialize};
@@ -38,18 +38,17 @@ impl AccountOrm {
         api_key: &str,
         sign_key: Option<String>,
     ) -> Result<String, Error> {
-        let result = sqlx::query!(
-        r#"INSERT INTO test.public.accounts (uid, exchange, api_key, sign_key)
+        let stringa = "INSERT INTO test.public.accounts (uid, exchange, api_key, sign_key)
          VALUES ($1, $2, $3, $4)
-         RETURNING (uid)"#,
-        uid.0,
-        exchange.to_string(),
-        api_key,
-        sign_key,
-    )
+         RETURNING (uid)";
+        let result = sqlx::query(stringa)
+            .bind(&uid.0)
+            .bind(exchange.to_string())
+            .bind(api_key)
+            .bind(sign_key)
             .fetch_one(&self.pg_pool)
             .await?;
-        Ok(result.uid)
+        Ok(result.get(0))
     }
 
     pub async fn sign_and_get_key(
@@ -127,51 +126,23 @@ impl AccountOrm {
         api_key: Option<String>,
         sign_key: Option<String>,
     ) -> Result<String, Error> {
-        if api_key.is_some() && sign_key.is_some() {
-            sqlx::query!(
-        r#"UPDATE test.public.accounts SET exchange = $1,
-                                api_key = $2,
-                                sign_key = $3
-         WHERE uid = $4;"#,
-        exchange.to_string(),
-        api_key,
-        sign_key,
-        uid.0,
-    )
-                .execute(&self.pg_pool)
-                .await?;
-        } else if api_key.is_some() {
-            sqlx::query!(
-        r#"UPDATE test.public.accounts SET exchange = $1,
-                                api_key = $2
-         WHERE uid = $3;"#,
-        exchange.to_string(),
-        api_key,
-        uid.0,
-    )
-                .execute(&self.pg_pool)
-                .await?;
-        } else if sign_key.is_some() {
-            sqlx::query!(
-        r#"UPDATE test.public.accounts SET exchange = $1,
-                                sign_key = $2
-         WHERE uid = $3;"#,
-        exchange.to_string(),
-        sign_key,
-        uid.0,
-    )
-                .execute(&self.pg_pool)
-                .await?;
-        } else {
-            sqlx::query!(
-        r#"UPDATE test.public.accounts SET exchange = $1
-         WHERE uid = $2;"#,
-        exchange.to_string(),
-        uid.0,
-    )
-                .execute(&self.pg_pool)
-                .await?;
-        };
-        Ok(uid.0.clone())
+        let mut query = "UPDATE test.public.accounts SET exchange = $1,".to_string();
+        if api_key.is_some() {
+            query += " api_key = $2,";
+       }
+        if sign_key.is_some() {
+            query += " sign_key = $3,";
+        }
+        query.remove(query.len() - 1);
+        query += "\nWHERE uid = $4\n RETURNING uid";
+
+        let result = sqlx::query(query.as_str())
+            .bind(exchange.to_string())
+            .bind(api_key)
+            .bind(sign_key)
+            .bind(&uid.0)
+            .fetch_one(&self.pg_pool)
+            .await?;
+        Ok(result.get(0))
     }
 }
